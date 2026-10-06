@@ -137,8 +137,9 @@ class AuthClient(BaseClient):
         data = {
             "code": payload.code,
             "client_id": self.client_id,
-            "client_secret": self.client_secret,
         }
+        if self.client_secret:
+            data["client_secret"] = self.client_secret
 
         token = await self._post_typed_request(
             TRAKT_ENDPOINTS["device_token"], data, response_type=TraktAuthToken
@@ -175,10 +176,11 @@ class AuthClient(BaseClient):
             data = {
                 "refresh_token": auth_snapshot.refresh_token,
                 "client_id": self.client_id,
-                "client_secret": self.client_secret,
                 "redirect_uri": OAUTH_REDIRECT_URI,
                 "grant_type": "refresh_token",
             }
+            if self.client_secret:
+                data["client_secret"] = self.client_secret
 
             try:
                 token = await self._post_typed_request(

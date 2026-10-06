@@ -56,9 +56,11 @@ class BaseClient:
     def __init__(self):
         """Initialize the base client with credentials from environment variables."""
         client_id = os.getenv("TRAKT_CLIENT_ID")
-        client_secret = os.getenv("TRAKT_CLIENT_SECRET")
+        # Apps created in the new Trakt developer portal can be public clients
+        # without a secret; the device flow then works with client_id only.
+        client_secret = os.getenv("TRAKT_CLIENT_SECRET") or ""
 
-        if not client_id or not client_secret:
+        if not client_id:
             raise ValueError(
                 "Trakt API credentials not found. Please check your .env file."
             )
