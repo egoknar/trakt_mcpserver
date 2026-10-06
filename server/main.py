@@ -1,6 +1,7 @@
 """Main server module for the Trakt MCP server."""
 
 import logging
+import os
 import sys
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
@@ -55,6 +56,26 @@ REGISTRATIONS: Final[tuple[Callable[[FastMCP], object], ...]] = (
     register_basic_prompts,
 )
 
+# Tools that change data on the Trakt account. Dropped unless TRAKT_READ_ONLY is turned off.
+WRITE_TOOLS: Final[tuple[str, ...]] = (
+    "add_to_history",
+    "remove_from_history",
+    "add_user_ratings",
+    "remove_user_ratings",
+    "add_user_watchlist",
+    "remove_user_watchlist",
+    "checkin_to_show",
+    "remove_playback_item",
+    "hide_movie_recommendation",
+    "hide_show_recommendation",
+    "unhide_movie_recommendation",
+    "unhide_show_recommendation",
+)
+
+
+def _read_only() -> bool:
+    return os.getenv("TRAKT_READ_ONLY", "1").strip().lower() not in ("0", "false", "no", "off")
+
 
 @asynccontextmanager
 async def _lifespan(_mcp: FastMCP) -> AsyncGenerator[None]:
@@ -76,9 +97,20 @@ def create_server() -> FastMCP:
     except PackageNotFoundError:
         version = "0.0.0+dev"
     logger.info("Starting trakt-mcp v%s", version)
-    mcp = FastMCP(name="trakt-mcp", lifespan=_lifespan)
+    # Host/port only matter for the HTTP transports (MCP_TRANSPORT); the host must be set
+    # here because FastMCP derives its DNS-rebinding protection from it at construction.
+    mcp = FastMCP(
+        name="trakt-mcp",
+        lifespan=_lifespan,
+        host=os.getenv("MCP_HOST", "127.0.0.1"),
+        port=int(os.getenv("MCP_PORT", "8000")),
+    )
     for register in REGISTRATIONS:
         register(mcp)
+    if _read_only():
+        for name in WRITE_TOOLS:
+            mcp.remove_tool(name)
+        logger.info("Read-only mode: %d write tools disabled", len(WRITE_TOOLS))
     logger.info("All Trakt MCP modules registered successfully")
     return mcp
 
@@ -91,7 +123,10 @@ def run() -> None:
     """Console-script entry point (used by `[project.scripts]` and uvx)."""
     # Print to stderr to avoid polluting stdout (required for stdio transport)
     print("Starting Trakt MCP server...", file=sys.stderr)
-    mcp.run()
+    transport = os.getenv("MCP_TRANSPORT", "stdio")
+    if transport not in ("stdio", "sse", "streamable-http"):
+        raise SystemExit(f"Unsupported MCP_TRANSPORT: {transport}")
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

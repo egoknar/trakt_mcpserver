@@ -69,6 +69,8 @@ class BaseClient:
             "Content-Type": "application/json",
             "trakt-api-version": "2",
             "trakt-api-key": self.client_id,
+            # Trakt sits behind Cloudflare, which may reject generic HTTP-library agents.
+            "User-Agent": os.getenv("TRAKT_USER_AGENT", "trakt-mcp/1.0 (+https://github.com/wwiens/trakt_mcpserver)"),
         }
 
         self.auth_token: TraktAuthToken | None = None

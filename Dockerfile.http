@@ -1,0 +1,28 @@
+# Trakt MCP server over streamable HTTP (no mcp-proxy), read-only by default.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TRAKT_AUTH_TOKEN_PATH=/data/auth_token.json \
+    TRAKT_READ_ONLY=1 \
+    MCP_TRANSPORT=streamable-http \
+    MCP_HOST=0.0.0.0 \
+    MCP_PORT=8773
+
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE ./
+COPY server ./server
+COPY client ./client
+COPY models ./models
+COPY config ./config
+COPY utils ./utils
+RUN pip install . \
+    && useradd -u 1000 -m appuser \
+    && mkdir -p /data && chown appuser:appuser /data
+
+USER appuser
+VOLUME /data
+EXPOSE 8773
+HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
+  CMD python -c "import socket; socket.create_connection(('127.0.0.1', 8773), 3)"
+CMD ["trakt-mcp"]
